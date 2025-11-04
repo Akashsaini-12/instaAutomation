@@ -1,0 +1,23 @@
+# Ignore files for Vercel deployment
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+.venv
+downloads/
+logs/
+*.log
+.env
+.env.local
+*.session
+session-*.json
+.git/
+.gitignore
+README.md
+QUICKSTART.md
+PROJECT_STRUCTURE.md
+*.md

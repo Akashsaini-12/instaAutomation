@@ -189,6 +189,15 @@ async def read_root():
             .play-btn:hover {
                 background-color: #218838;
             }
+            .delete-btn {
+                background-color: #dc3545;
+                padding: 8px 16px;
+                font-size: 14px;
+                margin-left: 8px;
+            }
+            .delete-btn:hover {
+                background-color: #c82333;
+            }
         </style>
     </head>
     <body>
@@ -232,16 +241,20 @@ async def read_root():
                     
                     let html = `<p><strong>Total: ${data.total} video(s)</strong></p>`;
                     html += '<table style="width: 100%; border-collapse: collapse; margin-top: 10px;">';
-                    html += '<tr style="background-color: #f0f0f0;"><th style="padding: 8px; text-align: left;">File</th><th style="padding: 8px; text-align: left;">Size</th><th style="padding: 8px; text-align: left;">Date</th></tr>';
+                    html += '<tr style="background-color: #f0f0f0;"><th style="padding: 8px; text-align: left;">File</th><th style="padding: 8px; text-align: left;">Size</th><th style="padding: 8px; text-align: left;">Date</th><th style="padding: 8px; text-align: left;">Actions</th></tr>';
                     
                     data.videos.forEach(video => {
                         const date = new Date(video.modified * 1000).toLocaleString();
                         const videoUrl = `/video/${encodeURIComponent(video.relative_path)}`;
-                        html += `<tr>`;
+                        const relativePath = encodeURIComponent(video.relative_path);
+                        html += `<tr id="row-${relativePath}">`;
                         html += `<td>📹 ${video.filename}</td>`;
                         html += `<td>${video.size_mb} MB</td>`;
                         html += `<td>${date}</td>`;
-                        html += `<td><button class="play-btn" onclick='playVideo("${videoUrl}", "${video.filename}")'>▶️ Play</button></td>`;
+                        html += `<td>`;
+                        html += `<button class="play-btn" onclick='playVideo("${videoUrl}", "${video.filename}")'>▶️ Play</button>`;
+                        html += `<button class="delete-btn" onclick='deleteVideo("${relativePath}", "${video.filename}")'>🗑️ Delete</button>`;
+                        html += `</td>`;
                         html += `</tr>`;
                     });
                     
@@ -254,6 +267,50 @@ async def read_root():
             
             // Load downloads on page load
             loadDownloads();
+            
+            async function deleteVideo(relativePath, filename) {
+                if (!confirm(`Are you sure you want to delete "${filename}"?\\n\\nThis action cannot be undone!`)) {
+                    return;
+                }
+                
+                try {
+                    const response = await fetch(`/video/${relativePath}`, {
+                        method: 'DELETE'
+                    });
+                    
+                    const result = await response.json();
+                    
+                    if (response.ok && result.success) {
+                        // Remove the row from the table
+                        const rowId = `row-${relativePath}`;
+                        const row = document.getElementById(rowId);
+                        if (row) {
+                            row.style.transition = 'opacity 0.3s';
+                            row.style.opacity = '0';
+                            setTimeout(() => {
+                                row.remove();
+                                // Reload the list to update the count
+                                loadDownloads();
+                            }, 300);
+                        }
+                        
+                        // Show success message
+                        const statusDiv = document.getElementById('status');
+                        statusDiv.style.display = 'block';
+                        statusDiv.style.backgroundColor = '#d4edda';
+                        statusDiv.style.color = '#155724';
+                        statusDiv.innerHTML = `✅ ${result.message}`;
+                        setTimeout(() => {
+                            statusDiv.style.display = 'none';
+                        }, 3000);
+                    } else {
+                        throw new Error(result.detail || 'Failed to delete video');
+                    }
+                } catch (error) {
+                    alert(`Error deleting video: ${error.message}`);
+                    console.error('Delete error:', error);
+                }
+            }
             
             function playVideo(videoUrl, filename) {
                 // Remove existing video player if any
@@ -412,6 +469,51 @@ async def list_downloads():
     }
 
 
+@app.delete("/video/{filename:path}")
+async def delete_video(filename: str):
+    """
+    Delete a video file.
+    
+    Args:
+        filename: Relative path to the video file from download directory
+        
+    Returns:
+        Success or error message
+    """
+    from pathlib import Path
+    from src.config import settings
+    
+    try:
+        video_path = Path(settings.download_dir) / filename
+        
+        # Security check: ensure the path is within download directory
+        try:
+            video_path.resolve().relative_to(Path(settings.download_dir).resolve())
+        except ValueError:
+            raise HTTPException(status_code=403, detail="Invalid file path")
+        
+        if not video_path.exists():
+            raise HTTPException(status_code=404, detail="Video file not found")
+        
+        if not video_path.is_file():
+            raise HTTPException(status_code=400, detail="Path is not a file")
+        
+        # Delete the file
+        video_path.unlink()
+        logger.info(f"Deleted video file: {video_path}")
+        
+        return {
+            "success": True,
+            "message": f"Video '{filename}' deleted successfully",
+            "filename": filename
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting video {filename}: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error deleting video: {str(e)}")
+
+
 @app.get("/health")
 async def health_check():
     """Health check endpoint."""
@@ -420,5 +522,11 @@ async def health_check():
 
 if __name__ == "__main__":
     import uvicorn
-    logger.info("Starting web UI server on http://localhost:8000")
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    import os
+    
+    # Get port from environment variable (for deployment platforms) or default to 8000
+    port = int(os.environ.get("PORT", 8000))
+    host = os.environ.get("HOST", "0.0.0.0")
+    
+    logger.info(f"Starting web UI server on http://{host}:{port}")
+    uvicorn.run(app, host=host, port=port)
