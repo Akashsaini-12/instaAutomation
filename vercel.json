@@ -11,23 +11,5 @@
       "src": "/(.*)",
       "dest": "api/index.py"
     }
-  ],
-  "env": {
-    "PYTHON_VERSION": "3.10"
-  },
-  "ignore": [
-    "downloads/**",
-    "logs/**",
-    "venv/**",
-    ".venv/**",
-    "*.session",
-    "session-*.json",
-    "__pycache__/**",
-    "*.pyc",
-    "*.pyo",
-    "*.pyd",
-    ".git/**",
-    "*.md",
-    "tests/**"
   ]
 }
