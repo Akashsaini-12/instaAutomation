@@ -1,0 +1,18 @@
+# Minimal requirements for Vercel deployment (web UI only)
+# Note: Video download/upload features won't work on Vercel due to limitations
+
+# Web framework
+fastapi>=0.104.1
+uvicorn[standard]>=0.24.0
+python-multipart>=0.0.6
+
+# Utilities
+python-dotenv>=1.0.0
+pydantic>=2.5.0
+pydantic-settings>=2.1.0
+
+# Logging
+colorlog>=6.8.0
+
+# Minimal dependencies only - instaloader and instagrapi are too large for Vercel
+# For full functionality, use Railway/Render instead

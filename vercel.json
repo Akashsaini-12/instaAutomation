@@ -2,17 +2,36 @@
   "version": 2,
   "builds": [
     {
-      "src": "web_ui.py",
-      "use": "@vercel/python"
+      "src": "api/index.py",
+      "use": "@vercel/python",
+      "config": {
+        "maxLambdaSize": "250mb",
+        "includeFiles": "**/*.py"
+      }
     }
   ],
   "routes": [
     {
       "src": "/(.*)",
-      "dest": "web_ui.py"
+      "dest": "api/index.py"
     }
   ],
+  "functions": {
+    "api/index.py": {
+      "maxDuration": 30
+    }
+  },
   "env": {
     "PYTHON_VERSION": "3.10"
-  }
+  },
+  "ignore": [
+    "downloads/**",
+    "logs/**",
+    "venv/**",
+    ".venv/**",
+    "*.session",
+    "session-*.json",
+    "__pycache__/**",
+    "*.pyc"
+  ]
 }
