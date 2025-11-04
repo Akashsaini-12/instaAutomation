@@ -1,0 +1,25 @@
+{
+  "": {
+    "username": "your__username",
+    "password": "your__password",
+    "session_file": "session/ig_session.json"
+  },
+  "download": {
+    "download_dir": "downloads",
+    "max_retries": 3,
+    "retry_delay": 5
+  },
+  "upload": {
+    "delay_between_posts": 3600,
+    "caption_prefix": "#auto",
+    "generate_captions": false
+  },
+  "scheduling": {
+    "enabled": false,
+    "interval_hours": 2
+  },
+  "logging": {
+    "level": "INFO",
+    "log_file": "logs/_automation.log"
+  }
+}
