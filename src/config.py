@@ -29,27 +29,49 @@ class Settings(BaseSettings):
     # Logging
     log_level: str = Field(default="INFO", env="LOG_LEVEL")
     
-    # Posting Configuration
-    post_delay_seconds: int = Field(default=300, env="POST_DELAY_SECONDS")  # 5 minutes default
+    # Posting Configuration - SAFETY FIRST: Following Instagram Guidelines
+    # Minimum delay between posts: 10-15 minutes (recommended: 15-30 minutes)
+    post_delay_seconds: int = Field(default=900, env="POST_DELAY_SECONDS")  # 15 minutes default (safer)
+    post_delay_random_min: int = Field(default=600, env="POST_DELAY_RANDOM_MIN")  # 10 minutes minimum
+    post_delay_random_max: int = Field(default=1800, env="POST_DELAY_RANDOM_MAX")  # 30 minutes maximum
+    
+    # Daily/Hourly Limits - CRITICAL for account safety
+    max_posts_per_day: int = Field(default=10, env="MAX_POSTS_PER_DAY")  # Maximum 10 posts per day (very safe)
+    max_posts_per_hour: int = Field(default=2, env="MAX_POSTS_PER_HOUR")  # Maximum 2 posts per hour
+    max_comments_per_hour: int = Field(default=20, env="MAX_COMMENTS_PER_HOUR")  # Maximum 20 comments per hour
+    max_likes_per_hour: int = Field(default=50, env="MAX_LIKES_PER_HOUR")  # Maximum 50 likes per hour
     
     # Optional Scheduling
     auto_post_enabled: bool = Field(default=False, env="AUTO_POST_ENABLED")
     post_interval_hours: int = Field(default=2, env="POST_INTERVAL_HOURS")
     
-    # Auto-like comments feature
+    # Auto-like comments feature - WITH SAFETY LIMITS
     auto_like_comments: bool = Field(default=False, env="AUTO_LIKE_COMMENTS")
-    auto_like_comment_delay: int = Field(default=60, env="AUTO_LIKE_COMMENT_DELAY")  # Delay in seconds after upload
+    auto_like_comment_delay: int = Field(default=180, env="AUTO_LIKE_COMMENT_DELAY")  # 3 minutes delay after upload (safer)
+    auto_like_max_per_post: int = Field(default=10, env="AUTO_LIKE_MAX_PER_POST")  # Max likes per post
+    auto_like_delay_between: int = Field(default=5, env="AUTO_LIKE_DELAY_BETWEEN")  # 5 seconds between likes
     
-    # Auto-comment feature
+    # Auto-comment feature - WITH SAFETY LIMITS
     auto_comment_enabled: bool = Field(default=False, env="AUTO_COMMENT_ENABLED")
     auto_comment_text: str = Field(default="Thanks for watching! 🙌", env="AUTO_COMMENT_TEXT")
-    auto_comment_delay: int = Field(default=30, env="AUTO_COMMENT_DELAY")  # Delay in seconds after upload
+    auto_comment_delay: int = Field(default=60, env="AUTO_COMMENT_DELAY")  # 1 minute delay after upload (safer)
     
-    # Auto-reply to comments feature
+    # Auto-reply to comments feature - WITH SAFETY LIMITS
     auto_reply_enabled: bool = Field(default=False, env="AUTO_REPLY_ENABLED")
     auto_reply_text: str = Field(default="Thanks for your comment! 🙏", env="AUTO_REPLY_TEXT")
-    auto_reply_delay: int = Field(default=120, env="AUTO_REPLY_DELAY")  # Delay in seconds after upload to check for comments
-    auto_reply_check_interval: int = Field(default=300, env="AUTO_REPLY_CHECK_INTERVAL")  # Check for new comments every 5 minutes
+    auto_reply_delay: int = Field(default=300, env="AUTO_REPLY_DELAY")  # 5 minutes delay after upload
+    auto_reply_check_interval: int = Field(default=600, env="AUTO_REPLY_CHECK_INTERVAL")  # Check every 10 minutes
+    auto_reply_max_per_post: int = Field(default=5, env="AUTO_REPLY_MAX_PER_POST")  # Max replies per post
+    auto_reply_delay_between: int = Field(default=30, env="AUTO_REPLY_DELAY_BETWEEN")  # 30 seconds between replies
+    
+    # Rate limit handling
+    enable_exponential_backoff: bool = Field(default=True, env="ENABLE_EXPONENTIAL_BACKOFF")
+    max_retry_attempts: int = Field(default=3, env="MAX_RETRY_ATTEMPTS")
+    retry_base_delay: int = Field(default=60, env="RETRY_BASE_DELAY")  # Base delay for retries (1 minute)
+    
+    # Session safety
+    session_save_enabled: bool = Field(default=True, env="SESSION_SAVE_ENABLED")
+    session_file: str = Field(default="session/ig_session.json", env="SESSION_FILE")
     
     # Trending hashtags with video analysis
     use_trending_hashtags: bool = Field(default=True, env="USE_TRENDING_HASHTAGS")

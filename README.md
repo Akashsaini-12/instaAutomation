@@ -4,19 +4,41 @@ A complete Python-based automation system to download  videos from URLs and auto
 
 ## ⚠️ Important Disclaimer
 
-**Please note**: This project is for educational purposes. 's Terms of Service prohibit automated posting and scraping. Use this at your own risk.  may temporarily or permanently suspend accounts that violate their terms.
+**Please note**: This project is for educational purposes. Instagram's Terms of Service prohibit automated posting and scraping. Use this at your own risk. Instagram may temporarily or permanently suspend accounts that violate their terms.
+
+## 🛡️ Account Safety Features
+
+This project includes **comprehensive safety measures** to protect your account:
+
+- **Rate Limiting**: Enforces daily/hourly limits (10 posts/day, 2 posts/hour by default)
+- **Randomized Delays**: Human-like behavior with random delays (10-30 minutes between posts)
+- **Action Tracking**: Tracks all actions to prevent exceeding limits
+- **Error Handling**: Exponential backoff on rate limit errors
+- **Safety Manager**: Automatic blocking when limits are reached
+
+**⚠️ IMPORTANT**: Read [SAFETY_GUIDELINES.md](SAFETY_GUIDELINES.md) before using this tool!
+
+**Default Safety Settings**:
+- Maximum 10 posts per day
+- Maximum 2 posts per hour
+- 15-30 minute delays between posts (randomized)
+- Maximum 20 comments per hour
+- Maximum 50 likes per hour
+
+These settings can be adjusted in your `.env` file, but **we strongly recommend keeping them conservative** to avoid account bans.
 
 ## 🚀 Features
 
-- **Batch Download**: Download multiple  videos from URLs
-- **Automatic Posting**: Automatically upload videos to your  account
+- **Batch Download**: Download multiple Instagram videos from URLs
+- **Automatic Posting**: Automatically upload videos to your Instagram account
+- **🛡️ Account Safety**: Comprehensive rate limiting and safety measures
 - **Metadata Tracking**: Store video metadata (title, path, timestamp, status)
-- **Error Handling**: Robust error handling for download and upload failures
+- **Error Handling**: Robust error handling with exponential backoff
 - **Logging**: Comprehensive logging for tracking operations
 - **Queue Management**: Track download and upload status
-- **CLI Interface**: Simple command-line interface
-- **Web UI** (Optional): FastAPI-based web interface
-- **Scheduling** (Optional): Schedule automatic posting
+- **Web UI**: Modern FastAPI-based web interface
+- **Auto-Interactions**: Auto-like comments, auto-comment, auto-reply (with safety limits)
+- **Trending Hashtags**: Automatic hashtag generation based on video content
 
 ## 📋 Prerequisites
 

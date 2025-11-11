@@ -3,6 +3,7 @@
 Handles uploading videos to  account with proper authentication and error handling.
 """
 import time
+import random
 from pathlib import Path
 from typing import List, Optional
 
@@ -13,6 +14,7 @@ import time
 from src.config import settings
 from src.models import VideoMetadata, VideoStatus
 from src.utils import setup_logger, generate_trending_hashtags
+from src.safety_manager import get_safety_manager
 
 logger = setup_logger(__name__)
 
@@ -31,8 +33,13 @@ class Uploader:
         self.username = username
         self.password = password
         self.client = Client()
-        self.client.delay_range = [1, 3]  # Random delay between 1-3 seconds
+        # Increased delay range for safer automation (2-5 seconds)
+        self.client.delay_range = [2, 5]
         self._authenticated = False
+        self.safety_manager = get_safety_manager()
+        self._retry_count = 0
+        
+        logger.info("🛡️  Uploader initialized with safety manager - Account protection enabled")
     
     def login(self) -> bool:
         """
@@ -66,7 +73,9 @@ class Uploader:
             return False
             
         except PleaseWaitFewMinutes as e:
-            logger.error(f"Rate limit exceeded. Please wait: {str(e)}")
+            logger.error(f"⚠️  Rate limit exceeded. Please wait: {str(e)}")
+            logger.error("🛡️  This is Instagram's rate limiting. Your account is being protected.")
+            logger.error("💡 Recommendation: Wait 1-2 hours before trying again.")
             return False
             
         except Exception as e:
@@ -88,7 +97,7 @@ class Uploader:
         thumbnail_path: Optional[str] = None
     ) -> Optional[str]:
         """
-        Upload a single video to .
+        Upload a single video to  with safety checks.
         
         Args:
             video_path: Path to video file
@@ -100,6 +109,14 @@ class Uploader:
         """
         if not self._authenticated:
             logger.error("Not authenticated. Please login first.")
+            return None
+        
+        # SAFETY CHECK: Check rate limits before uploading
+        can_upload, reason = self.safety_manager.can_perform_action(self.safety_manager.ACTION_POST)
+        if not can_upload:
+            logger.error(f"❌ Upload blocked: {reason}")
+            logger.error("🛡️  This is a safety measure to prevent account bans.")
+            logger.error("💡 Please wait before uploading more videos.")
             return None
         
         video_file = Path(video_path)
@@ -164,6 +181,15 @@ class Uploader:
             media_id = str(media_id) if media_id else "uploaded"
             logger.info(f"✓ Successfully uploaded video. Media ID: {media_id}")
             
+            # Record the action for rate limiting
+            self.safety_manager.record_action(
+                self.safety_manager.ACTION_POST,
+                details={'media_id': media_id, 'video_path': str(video_file)}
+            )
+            
+            # Reset retry count on success
+            self._retry_count = 0
+            
             return media_id
             
         except LoginRequired:
@@ -173,12 +199,32 @@ class Uploader:
             return None
             
         except PleaseWaitFewMinutes as e:
-            logger.error(f"Rate limit exceeded: {str(e)}")
+            logger.error(f"⚠️  Rate limit exceeded: {str(e)}")
+            logger.error("🛡️  Instagram has rate-limited your account. Please wait before uploading again.")
+            
+            # Record the rate limit event
+            self.safety_manager.record_action(
+                'rate_limit',
+                details={'error': str(e), 'action': 'upload'}
+            )
+            
+            # Exponential backoff if enabled
+            if getattr(settings, 'enable_exponential_backoff', True):
+                backoff_delay = getattr(settings, 'retry_base_delay', 60) * (2 ** self._retry_count)
+                logger.info(f"⏳ Waiting {backoff_delay} seconds before retry (exponential backoff)...")
+                time.sleep(min(backoff_delay, 3600))  # Max 1 hour
+            
             return None
             
         except Exception as e:
             error_msg = str(e)
             logger.error(f"Failed to upload video {video_file.name}: {error_msg}")
+            
+            # Check for rate limit indicators in error message
+            if any(keyword in error_msg.lower() for keyword in ['rate limit', 'too many', 'wait', 'try again later']):
+                logger.warning("🛡️  Rate limit detected in error message. Adding safety delay.")
+                time.sleep(300)  # Wait 5 minutes
+            
             return None
     
     def like_comments_on_post(self, media_id: str, max_comments: int = 10) -> int:
@@ -231,16 +277,32 @@ class Uploader:
             liked_count = 0
             logger.info(f"✅ Found {len(comments)} comment(s), starting to like...")
             
-            for idx, comment in enumerate(comments, 1):
+            max_likes = min(len(comments), getattr(settings, 'auto_like_max_per_post', 10))
+            like_delay = getattr(settings, 'auto_like_delay_between', 5)
+            
+            for idx, comment in enumerate(comments[:max_likes], 1):
                 try:
+                    # SAFETY CHECK: Check rate limits before liking
+                    can_like, reason = self.safety_manager.can_perform_action(self.safety_manager.ACTION_LIKE)
+                    if not can_like:
+                        logger.warning(f"⚠️  Like blocked: {reason}. Stopping auto-like.")
+                        break
+                    
                     # Like the comment
                     self.client.comment_like(comment.pk)
                     liked_count += 1
                     username = getattr(comment.user, 'username', 'unknown')
-                    logger.info(f"  [{idx}/{len(comments)}] ❤️  Liked comment by @{username}")
+                    logger.info(f"  [{idx}/{max_likes}] ❤️  Liked comment by @{username}")
                     
-                    # Small delay between likes to avoid rate limiting
-                    time.sleep(1)
+                    # Record the action
+                    self.safety_manager.record_action(
+                        self.safety_manager.ACTION_LIKE,
+                        details={'comment_id': comment.pk, 'username': username}
+                    )
+                    
+                    # Random delay between likes (human-like behavior)
+                    delay = like_delay + random.randint(-1, 2)
+                    time.sleep(max(delay, 3))  # Minimum 3 seconds
                     
                 except Exception as e:
                     username = getattr(comment.user, 'username', 'unknown') if hasattr(comment, 'user') else 'unknown'
@@ -284,11 +346,24 @@ class Uploader:
             except (ValueError, TypeError):
                 media_pk_int = media_pk
             
+            # SAFETY CHECK: Check rate limits before commenting
+            can_comment, reason = self.safety_manager.can_perform_action(self.safety_manager.ACTION_COMMENT)
+            if not can_comment:
+                logger.warning(f"⚠️  Comment blocked: {reason}")
+                return False
+            
             logger.info(f"💬 Posting comment on media ID: {media_pk_int}")
             logger.info(f"   Comment text: \"{comment_text}\"")
             
             # Post the comment
             comment = self.client.media_comment(media_pk_int, comment_text)
+            
+            # Record the action
+            if comment:
+                self.safety_manager.record_action(
+                    self.safety_manager.ACTION_COMMENT,
+                    details={'media_id': media_pk_int, 'comment_id': getattr(comment, 'pk', None)}
+                )
             
             if comment:
                 logger.info(f"✅ Successfully posted comment on the post!")
@@ -371,14 +446,33 @@ class Uploader:
                         logger.debug(f"  [{idx}] Already replied to comment by @{comment.user.username}")
                         continue
                     
+                    # SAFETY CHECK: Check rate limits before replying
+                    can_reply, reason = self.safety_manager.can_perform_action(self.safety_manager.ACTION_REPLY)
+                    if not can_reply:
+                        logger.warning(f"⚠️  Reply blocked: {reason}. Stopping auto-reply.")
+                        break
+                    
+                    max_replies = getattr(settings, 'auto_reply_max_per_post', 5)
+                    if replied_count >= max_replies:
+                        logger.info(f"⚠️  Reached maximum replies per post ({max_replies}). Stopping.")
+                        break
+                    
                     # Reply to the comment
                     self.client.media_comment(actual_media_pk, reply_text, replied_to_comment_id=comment.pk)
                     replied_count += 1
                     username = getattr(comment.user, 'username', 'unknown')
                     logger.info(f"  [{idx}/{len(comments)}] 💬 Replied to comment by @{username}")
                     
-                    # Delay between replies to avoid rate limiting
-                    time.sleep(2)
+                    # Record the action
+                    self.safety_manager.record_action(
+                        self.safety_manager.ACTION_REPLY,
+                        details={'comment_id': comment.pk, 'username': username}
+                    )
+                    
+                    # Random delay between replies (human-like behavior)
+                    reply_delay = getattr(settings, 'auto_reply_delay_between', 30)
+                    delay = reply_delay + random.randint(-5, 10)
+                    time.sleep(max(delay, 20))  # Minimum 20 seconds
                     
                 except Exception as e:
                     username = getattr(comment.user, 'username', 'unknown') if hasattr(comment, 'user') else 'unknown'
@@ -511,10 +605,18 @@ class Uploader:
                     videos[i] = updated_metadata
                     break
             
-            # Wait before next upload (except for the last one)
+            # Wait before next upload (except for the last one) with randomized delay
             if idx < len(videos_to_upload):
-                logger.info(f"Waiting {delay} seconds before next upload...")
-                time.sleep(delay)
+                # Use safety manager's random delay for human-like behavior
+                random_delay = self.safety_manager.get_random_delay(
+                    min_seconds=getattr(settings, 'post_delay_random_min', 600),
+                    max_seconds=getattr(settings, 'post_delay_random_max', 1800)
+                )
+                logger.info(f"⏳ Waiting {random_delay} seconds before next upload (randomized for safety)...")
+                self.safety_manager.wait_with_random_delay(random_delay)
+                
+                # Print safety stats
+                self.safety_manager.print_stats()
         
         # Summary
         successful = sum(1 for m in results if m.status == VideoStatus.UPLOADED)

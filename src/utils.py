@@ -72,7 +72,7 @@ def validate__url(url: str) -> bool:
     Returns:
         True if valid  URL, False otherwise
     """
-    _pattern = r'https?://(www\.)?(\.com|instagr\.am)/.*'
+    _pattern = r'https?://(www\.)?(instagram\.com|instagr\.am)/.*'
     return bool(re.match(_pattern, url))
 
 

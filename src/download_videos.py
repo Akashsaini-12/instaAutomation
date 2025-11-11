@@ -41,6 +41,32 @@ class VideoDownloader:
         )
         self.download_dir = Path(settings.download_dir)
         self.download_dir.mkdir(parents=True, exist_ok=True)
+        self._logged_in = False
+        
+    def login(self) -> bool:
+        """
+        Login to Instagram (optional, but recommended for better access).
+        
+        Returns:
+            True if login successful, False otherwise
+        """
+        try:
+            username = settings.instagram_username
+            password = settings.instagram_password
+            
+            if not username or not password:
+                logger.warning("No Instagram credentials provided. Downloads may be limited.")
+                return False
+            
+            logger.info(f"Logging in to Instagram as {username}...")
+            self.loader.login(username, password)
+            self._logged_in = True
+            logger.info("✓ Successfully logged in to Instagram")
+            return True
+        except Exception as e:
+            logger.warning(f"Login failed: {str(e)}. Continuing without login (public videos only).")
+            self._logged_in = False
+            return False
     
     def download_video(self, url: str) -> VideoMetadata:
         """
@@ -83,26 +109,86 @@ class VideoDownloader:
             caption = post.caption if post.caption else f"Post_{post_id}"
             metadata.title = caption[:200] if caption else None  # Limit caption length
             
-            # Get video URL
-            if not hasattr(post, 'video_url') or not post.video_url:
-                raise ValueError("Video URL not available for this post")
+            # Get video URL - try multiple methods
+            video_url = None
+            if hasattr(post, 'video_url') and post.video_url:
+                video_url = post.video_url
+            elif hasattr(post, 'videos') and post.videos:
+                # For posts with multiple videos, get the first one
+                video_url = post.videos[0].url if isinstance(post.videos, list) and len(post.videos) > 0 else None
+            elif hasattr(post, 'typename') and post.typename == 'GraphVideo':
+                # Alternative method for video posts
+                try:
+                    video_url = post.video_url
+                except:
+                    pass
             
-            video_url = post.video_url
-            logger.info(f"Video URL obtained, starting download...")
+            if not video_url:
+                # Try to get video URL from node
+                try:
+                    if hasattr(post, '_node'):
+                        node = post._node
+                        if 'video_url' in node:
+                            video_url = node['video_url']
+                        elif 'video_versions' in node and len(node['video_versions']) > 0:
+                            video_url = node['video_versions'][0].get('url')
+                except Exception as e:
+                    logger.warning(f"Could not extract video URL from node: {e}")
             
-            # Download video directly using requests
-            logger.info(f"Downloading video from URL to: {self.download_dir}")
+            if not video_url:
+                raise ValueError("Video URL not available for this post. The post may be private or require login.")
+            
+            logger.info(f"Video URL obtained: {video_url[:50]}...")
+            logger.info(f"Downloading video to: {self.download_dir}")
             
             # Create filename
             timestamp = int(time.time())
             filename = f"{post_id}_{timestamp}.mp4"
             video_path = self.download_dir / filename
             
+            # Prepare headers with session cookies if logged in
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Accept': '*/*',
+                'Accept-Language': 'en-US,en;q=0.9',
+                'Accept-Encoding': 'gzip, deflate, br',
+                'Referer': 'https://www.instagram.com/',
+                'Origin': 'https://www.instagram.com',
+                'Connection': 'keep-alive',
+                'Sec-Fetch-Dest': 'video',
+                'Sec-Fetch-Mode': 'no-cors',
+                'Sec-Fetch-Site': 'cross-site',
+            }
+            
+            # Add session cookies if logged in
+            if self._logged_in:
+                try:
+                    # Try to get cookies from instaloader's context
+                    if hasattr(self.loader.context, 'session'):
+                        session = self.loader.context.session
+                        if hasattr(session, 'cookies') and session.cookies:
+                            cookie_dict = dict(session.cookies)
+                            if cookie_dict:
+                                headers['Cookie'] = '; '.join([f'{k}={v}' for k, v in cookie_dict.items()])
+                    # Alternative: use instaloader's internal session
+                    elif hasattr(self.loader.context, '_session'):
+                        session = self.loader.context._session
+                        if hasattr(session, 'cookies') and session.cookies:
+                            cookie_dict = dict(session.cookies)
+                            if cookie_dict:
+                                headers['Cookie'] = '; '.join([f'{k}={v}' for k, v in cookie_dict.items()])
+                except Exception as e:
+                    logger.debug(f"Could not add session cookies (continuing anyway): {e}")
+            
             # Download the video file
-            response = requests.get(video_url, stream=True, timeout=60, headers={
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-            })
+            logger.info(f"Starting download from video URL...")
+            response = requests.get(video_url, stream=True, timeout=120, headers=headers, allow_redirects=True)
             response.raise_for_status()
+            
+            # Check if we got a video file
+            content_type = response.headers.get('content-type', '')
+            if 'video' not in content_type and 'application' not in content_type:
+                logger.warning(f"Unexpected content type: {content_type}")
             
             # Get file size from headers
             total_size = int(response.headers.get('content-length', 0))
@@ -153,18 +239,32 @@ class VideoDownloader:
             List of VideoMetadata objects
         """
         logger.info(f"Starting batch download for {len(urls)} videos")
+        
+        # Try to login first (optional but recommended)
+        if not self._logged_in:
+            self.login()
+        
         results = []
         
         for idx, url in enumerate(urls, 1):
-            logger.info(f"Processing video {idx}/{len(urls)}")
-            metadata = self.download_video(url)
-            results.append(metadata)
-            
-            # Log status
-            if metadata.status == VideoStatus.DOWNLOADED:
-                logger.info(f"✓ Video {idx}/{len(urls)} downloaded successfully")
-            else:
-                logger.warning(f"✗ Video {idx}/{len(urls)} failed: {metadata.error_message}")
+            logger.info(f"Processing video {idx}/{len(urls)}: {url}")
+            try:
+                metadata = self.download_video(url)
+                results.append(metadata)
+                
+                # Log status
+                if metadata.status == VideoStatus.DOWNLOADED:
+                    logger.info(f"✓ Video {idx}/{len(urls)} downloaded successfully")
+                else:
+                    logger.warning(f"✗ Video {idx}/{len(urls)} failed: {metadata.error_message}")
+            except Exception as e:
+                logger.error(f"Unexpected error downloading video {idx}/{len(urls)}: {str(e)}", exc_info=True)
+                metadata = VideoMetadata(
+                    url=url,
+                    status=VideoStatus.DOWNLOAD_FAILED,
+                    error_message=f"Unexpected error: {str(e)}"
+                )
+                results.append(metadata)
         
         # Summary
         successful = sum(1 for m in results if m.status == VideoStatus.DOWNLOADED)
