@@ -51,17 +51,52 @@ These settings can be adjusted in your `.env` file, but **we strongly recommend 
 1. **Clone or download this project**
 
 2. **Install dependencies**:
-```bash
-pip install -r requirements.txt
-```
+
+   For local development (full functionality):
+   ```bash
+   pip install -r requirements-full.txt
+   ```
+
+   For Vercel deployment (minimal - no video features):
+   ```bash
+   pip install -r requirements.txt
+   ```
 
 3. **Set up configuration**:
-   - Copy `.env.example` to `.env`
-   - Fill in your  credentials in `.env`:
+   - Copy `env.example` to `.env`
+   - Fill in your Instagram credentials in `.env`:
    ```
    _USERNAME=your_username
    _PASSWORD=your_password
    ```
+
+## 🚀 Deployment
+
+### Vercel Deployment (Limited)
+
+⚠️ **Note**: Vercel has a 250 MB size limit. This project includes a minimal API for Vercel that explains limitations and guides users to Railway/Render.
+
+- ✅ Minimal API deploys successfully
+- ❌ Video download/upload not available
+- 📄 Shows landing page with deployment instructions
+
+See [VERCEL_DEPLOYMENT.md](VERCEL_DEPLOYMENT.md) for details.
+
+### Railway/Render Deployment (Recommended) ⭐
+
+For **full functionality**, deploy to Railway or Render:
+
+1. **Use full requirements**:
+   ```bash
+   cp requirements-full.txt requirements.txt
+   ```
+
+2. **Follow deployment guide**: See [DEPLOYMENT.md](DEPLOYMENT.md)
+
+3. **Platforms**:
+   - **Railway** ⭐ (Recommended - Easy setup, persistent storage)
+   - **Render** (Free tier, persistent storage)
+   - **Fly.io** (Good for long-running tasks)
 
 ## 📁 Project Structure
 

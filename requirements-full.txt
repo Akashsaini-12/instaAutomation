@@ -1,0 +1,26 @@
+# Full requirements for Railway/Render deployment
+# Use this file for platforms that support large dependencies
+
+# Instagram video download
+instaloader>=4.10
+
+# Instagram posting (more reliable than Graph API for personal accounts)
+instagrapi>=2.0.0
+
+# Web framework for optional UI
+fastapi>=0.104.1
+uvicorn[standard]>=0.24.0
+python-multipart>=0.0.6
+
+# Utilities
+python-dotenv>=1.0.0
+pydantic>=2.5.0
+pydantic-settings>=2.1.0
+
+# Logging and async
+colorlog>=6.8.0
+schedule>=1.2.0
+
+# Video processing (if needed for validation)
+pillow>=10.0.0
+

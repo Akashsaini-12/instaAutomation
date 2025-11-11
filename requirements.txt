@@ -1,25 +1,27 @@
-#  Automation Project Requirements
-# Python 3.10+
+# Minimal requirements for Vercel deployment
+# NOTE: This is optimized for Vercel's 250MB limit
+# For full functionality, use Railway or Render instead
 
-#  video download
-instaloader>=4.10
-
-#  posting (more reliable than Graph API for personal accounts)
-instagrapi>=2.0.0
-
-# Web framework for optional UI
+# Web framework (lightweight)
 fastapi>=0.104.1
-uvicorn>=0.24.0
+uvicorn[standard]>=0.24.0
 python-multipart>=0.0.6
 
-# Utilities
+# Utilities (minimal)
 python-dotenv>=1.0.0
 pydantic>=2.5.0
 pydantic-settings>=2.1.0
 
-# Logging and async
+# Logging (lightweight)
 colorlog>=6.8.0
-schedule>=1.2.0
 
-# Video processing (if needed for validation)
-pillow>=10.0.0
+# NOTE: Heavy dependencies are excluded for Vercel:
+# - instaloader (too large - ~50-80 MB)
+# - instagrapi (too large - ~30-50 MB)  
+# - pillow (too large - ~20-40 MB)
+# - schedule (not needed for API)
+
+# For full functionality with video download/upload:
+# 1. Deploy to Railway: https://railway.app
+# 2. Deploy to Render: https://render.com
+# 3. Use requirements-full.txt (create this file with all dependencies)
